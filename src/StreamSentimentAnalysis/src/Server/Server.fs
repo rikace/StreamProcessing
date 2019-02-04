@@ -80,7 +80,7 @@ let webApp =
         post "/api/update" updateMap
         post "/api/start" start
         post "/api/startasync" startAsync
-        post "/appi/startparallel" startParallel
+        post "/api/startparallel" startParallel
         post "/api/stop" stop
     }
 

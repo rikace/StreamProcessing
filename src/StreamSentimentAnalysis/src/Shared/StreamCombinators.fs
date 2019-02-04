@@ -1,6 +1,5 @@
 namespace StreamingCombinators
 
-[<RequireQualifiedAccess>]
 module FlowEx =
     
     open System
@@ -19,8 +18,7 @@ module FlowEx =
         FlowOperations.SelectAsyncUnordered(flow, parallelism, new Func<_, _>(fn))
         
     let inline async (flow: Flow<'t, 'u, 'mat>) : Flow<'t, 'u, 'mat> = flow.Async()
-    
-    
+        
     let inline select map (flow:Flow<_,_, NotUsed>) =
         flow.Select(new Func<_,_>(map))
     
@@ -31,9 +29,17 @@ module FlowEx =
     
     let inline buffer (size:int) (strategy:OverflowStrategy) (flow:Flow<_,_,_>) = flow.Buffer(size, strategy)
     
-    let selectAsync (parallelism:int) (asyncMapper:_ -> Task<_>) (flow:Flow<_, _,NotUsed>) =
+    let inline selectAsync (parallelism:int) (asyncMapper:_ -> Task<_>) (flow:Flow<_, _,NotUsed>) =
         flow.SelectAsync(parallelism, new Func<_, Task<_>>(asyncMapper))
-
+    
+    let inline via (b:IGraph<FlowShape<_, _>, NotUsed>) (a:GraphDsl.ForwardOps<_, NotUsed>) = a.Via(b)
+    
+    let inline sink (b:Inlet<_>) (a:GraphDsl.ForwardOps<_, NotUsed>) = a.To(b)
+        
+    let inline viaGraph (b:IGraph<FlowShape<_, _>, NotUsed>) (a:Source<_, _>) = a.Via(b)
+    
+    let inline sinkGraph (b:Sink<_, Task>) (a:Source<_, _>) = a.To(b)
+    
 [<AutoOpen>]
 module Combinators =        
     let inline via< ^a, ^b, ^c when ^a : (member Via: ^b -> ^c )> (b: ^b) a =
