@@ -13,10 +13,6 @@ type SocketRegistry private () =
     static member Items = sockets.Value
     static member Add (socket:WebSocket) = sockets.Value.Add socket
     static member Remove (socket:WebSocket) = sockets.Value.TryTake (ref socket)
-    
-////TODO: Wrap in MailboxProcessor or ConcurrentList
-//let mutable sockets = list<WebSocket>.Empty
-//let private addSocket sockets socket = socket :: sockets
 
 let private removeSocket sockets socket =
     sockets
