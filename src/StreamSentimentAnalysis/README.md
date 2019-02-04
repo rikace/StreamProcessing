@@ -1,8 +1,4 @@
-# Saturn + Websockets + Fable
-
-Sample for using Saturn with websockets and Fable/Elmish. Initial data is loaded from the server. Then press the big green button to start "background job" (i.e. timer) that will generate new data and push it to the client with web socket.
-
-Second big green button starts another "background job" that will push images url into the client and display the image in the UI.
+# Akka.Streams + Websockets
 
 ## Install pre-requisites
 
@@ -13,6 +9,20 @@ You'll need to install the following pre-requisites in order to build SAFE appli
 * The [Yarn](https://yarnpkg.com/lang/en/docs/install/) package manager (you an also use `npm` but the usage of `yarn` is encouraged).
 * [Node LTS](https://nodejs.org/en/download/) installed for the front end components.
 * If you're running on OSX or Linux, you'll also need to install [Mono](https://www.mono-project.com/docs/getting-started/install/).
+
+## Fable.ReactGoogleMaps
+
+Fable bindings and helpers for [react-google-map](https://github.com/tomchentw/react-google-maps)
+
+## Installation
+
+```
+npm install --save react-google-maps # or
+yarn add react-google-maps
+yarn add @babel/plugin-proposal-class-properties
+
+paket add Fable.ReactGoogleMaps --project [yourproject]
+```
 
 ## Work with the application
 

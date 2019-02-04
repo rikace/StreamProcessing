@@ -76,7 +76,7 @@ let update (msg : Msg) (currentModel : Model) : Model * Cmd<Msg> =
     | Stop ->
         let cmd =
             Cmd.ofPromise (fun _ -> postRecord "/api/stop" 0 []) () (fun _ -> Initalized) (fun _ -> Failed)
-        initialModel, cmd        
+        init()        
     | Start ->
         let cmd =
             Cmd.ofPromise (fun _ -> postRecord "/api/start" 1 []) () (fun _ -> Initalized) (fun _ -> Failed)

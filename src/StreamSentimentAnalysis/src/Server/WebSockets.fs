@@ -8,9 +8,15 @@ open System.Net.WebSockets
 open Microsoft.AspNetCore.Http
 open FSharp.Control.Tasks.V2
 
-//TODO: Wrap in MailboxProcessor or ConcurrentList
-let mutable sockets = list<WebSocket>.Empty
-let private addSocket sockets socket = socket :: sockets
+type SocketRegistry private () =
+    static let sockets = lazy (System.Collections.Concurrent.ConcurrentBag<WebSocket>())
+    static member Items = sockets.Value
+    static member Add (socket:WebSocket) = sockets.Value.Add socket
+    static member Remove (socket:WebSocket) = sockets.Value.TryTake (ref socket)
+    
+////TODO: Wrap in MailboxProcessor or ConcurrentList
+//let mutable sockets = list<WebSocket>.Empty
+//let private addSocket sockets socket = socket :: sockets
 
 let private removeSocket sockets socket =
     sockets
@@ -25,16 +31,16 @@ let private sendMessage =
             let segment = new ArraySegment<byte>(buffer)
             if socket.State = WebSocketState.Open then 
                 do! socket.SendAsync(segment, WebSocketMessageType.Text, true, CancellationToken.None)
-            else sockets <- removeSocket sockets socket
+            else SocketRegistry.Remove socket
         }
 
 let sendMessageToSockets =
     fun message -> 
         task {
-            for socket in sockets do
+            for socket in SocketRegistry.Items do
                 try 
                     do! sendMessage socket message
-                with _ -> sockets <- removeSocket sockets socket
+                with _ -> SocketRegistry.Remove socket
         }
 
 type WebSocketMiddleware(next : RequestDelegate) =
@@ -44,7 +50,7 @@ type WebSocketMiddleware(next : RequestDelegate) =
                 match ctx.WebSockets.IsWebSocketRequest with
                 | true -> 
                     let! webSocket = ctx.WebSockets.AcceptWebSocketAsync() |> Async.AwaitTask
-                    sockets <- addSocket sockets webSocket
+                    SocketRegistry.Add webSocket
                     let buffer : byte [] = Array.zeroCreate 4096
                     let! echo = webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None) 
                                 |> Async.AwaitTask
