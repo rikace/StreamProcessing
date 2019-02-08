@@ -62,3 +62,30 @@ group Build
     nuget Fake.DotNet.Cli
     nuget Fake.IO.FileSystem
 
+group ReactiveStream
+    source https://api.nuget.org/v3/index.json
+    framework: netcoreapp2.1
+    #storage: none
+
+    nuget FSharp.Core
+    nuget Akka
+    nuget Akka.FSharp
+    nuget Akka.Streams
+    nuget Reactive.Streams
+    nuget TweetinviAPI
+    nuget System.Configuration.ConfigurationManager
+    nuget Akkling
+    nuget Akkling.Streams
+    nuget System.Net.Primitives
+    nuget CsQuery
+    nuget Microsoft.ML
+
+group WebCrawler
+    source https://api.nuget.org/v3/index.json
+    framework: netcoreapp2.1
+    #storage: none
+
+    nuget FSharp.Core
+    nuget HtmlAgilityPack
+    nuget System.Reactive
+    nuget System.Threading.Tasks.Dataflow
