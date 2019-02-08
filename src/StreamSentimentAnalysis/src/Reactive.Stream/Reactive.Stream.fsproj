@@ -18,6 +18,7 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="AgentWebCrawler.fsx" />
     <None Include="PlayGround.fsx" />
     <None Include="Streams.fsx" />
   </ItemGroup>  

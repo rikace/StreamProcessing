@@ -24,6 +24,8 @@ open Microsoft.FSharp.Control
 open Akkling
 open Akkling.Streams
 open CsQuery
+open Akka.FSharp
+open Akka.FSharp.Actors
 
 let resolveLinks (uri : Uri, cq : CQ) = seq {
     for link in cq.["a[href]"] do
@@ -95,16 +97,25 @@ let webCrawler () : IGraph<FlowShape<Uri, Uri>, NotUsed> =
     
     graph        
         
-            
+let printer (inbox : Actor<_>) =
+    let rec loop () = actor {
+        let! msg = inbox.Receive()
+        printfn "%s" msg
+        return! loop ()
+    }
+    loop ()
+    
 let run urls =
-    let sys = System.create("Reactive-WebCrawler") (Configuration.defaultConfig())
-    let mat = sys.Materializer()
+    let system = System.create("Reactive-WebCrawler") (Configuration.defaultConfig())
+    let mat = system.Materializer()
+  
+    let actorRef = spawn system "printer" printer
     
     let graph : RunnableGraph<NotUsed> =
         printfn "Starting graph..."
         Graph.create (fun b ->
             let source = b.Add(Source.From( urls |> Seq.map Uri).Async())
-            let sink = b.Add(Sink.forEach (fun s -> printfn "%O" s))
+            let sink = b.Add(Sink.forEach (fun s -> actorRef.Tell (sprintf "Uri : %O" s)))
             let crawlerFlow = b.Add(webCrawler().Async())
             
             b.From(source).Via(crawlerFlow).To(sink) |> ignore

@@ -14,7 +14,8 @@ open Shared.Reactive.Tweets
 open Reactive.StreamTwo
 open System.Threading.Tasks
 open Reactive.StreamOne
-open Reactive.StreamTwo
+open Akka.FSharp.Actors
+open Akka.FSharp
 
 type RunnableGraphType =
     | TweetsToConsole
@@ -41,6 +42,13 @@ module Graph =
         | RunnableGraphType.TweetsWithWeatherThrottle -> TweetsWeatherWithThrottle.create(tweetSource)
         // Tweet Emotion in comparison to StockTicker example
        
+let printer (inbox : Actor<_>) =
+    let rec loop () = actor {
+        let! msg = inbox.Receive()
+        printfn "%s" msg
+        return! loop ()
+    }
+    loop ()       
 
 let runTweetStreaming useCachedTweets (graphType : RunnableGraphType) =
     use system = ActorSystem.Create("Reactive-System")
@@ -54,13 +62,15 @@ let runTweetStreaming useCachedTweets (graphType : RunnableGraphType) =
 
     Console.WriteLine("<< Press Enter to Start >>")
     Console.ReadLine() |> ignore
- 
+
+    let actorRef = spawn system "printer" printer
+    
     use materialize = system.Materializer()
 
     if useCachedTweets then
 
         let tweetSource = Source.FromEnumerator(fun () -> (new TweetEnumerator(true)) :> IEnumerator<ITweet>)
-        let graph = Graph.graph<NotUsed>(tweetSource) graphType
+        let graph = Graph.graph<NotUsed>(tweetSource) graphType actorRef.Tell
         graph.Run(materialize) |> ignore
 
     else
@@ -68,14 +78,37 @@ let runTweetStreaming useCachedTweets (graphType : RunnableGraphType) =
 
             // TODO OverflowStrategy.DropHead 
         let tweetSource = Source.ActorRef<ITweet>(100, OverflowStrategy.DropBuffer)
-        let graph = Graph.graph<IActorRef>(tweetSource) graphType
+        let graph = Graph.graph<IActorRef>(tweetSource) graphType actorRef.Tell
         let actor = graph.Run(materialize)
 
         Utils.StartSampleTweetStream(actor)
     
     
+
 [<EntryPoint>]
 let main argv =
+    
+
+        
+//    
+//    namespace Demo.HelloWorld
+//{
+//    public class Printer : ReceiveActor
+//    {
+//        public Printer()
+//        {
+//            Receive<string>(whom => Console.WriteLine($"Hello from {whom}!"));
+//        }
+//    }
+//}
+//
+//    Source(1 to 1000000)
+//  .grouped(10)
+//  .throttle(elements = 10, per = 1.second, maximumBurst = 10, ThrottleMode.shaping)
+//  .mapAsync(10)(writeBatchToDatabase)
+//  .runWith(Sink.ignore)
+
+    
     
     let runWebCrawler () =
         Task.Run(fun () ->

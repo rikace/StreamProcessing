@@ -45,7 +45,7 @@ let formatTweet(tweet : ITweet) =
         .AppendLine() |> ignore
     builder.ToString()
         
-let run () =
+let run2 () =
     let tweetSource = Source.ActorRef<ITweet>(100, OverflowStrategy.DropHead)
     let formatFlow = Flow.Create<ITweet>().Select(new Func<ITweet, string>(formatTweet))
     let writeSink = Sink.ForEach<string>(new Action<string>(Console.WriteLine))
@@ -92,7 +92,7 @@ let run () =
     stream.StartStream()
 
       
-let runFun () =
+let runFun2 () =
     let tweetSource = Source.actorRef OverflowStrategy.DropHead 100
     let formatFlow = Flow.empty<ITweet, _> |> Flow.map formatTweet 
     let writeSink = Sink.forEach (fun tweet -> printfn "%s" tweet)

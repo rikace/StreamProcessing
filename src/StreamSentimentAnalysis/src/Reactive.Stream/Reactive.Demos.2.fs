@@ -34,7 +34,7 @@ let inline via x = ViaHelper ==> x
 
 module TweetsWithThrottle =
 
-    let create<'a>(tweetSource:Source<ITweet, 'a>) =
+    let create<'a>(tweetSource:Source<ITweet, 'a>) effect =
         let formatUser =
             Flow.Create<IUser>()
             |> FlowEx.select (Utils.FormatUser)
@@ -51,7 +51,7 @@ module TweetsWithThrottle =
             Flow.Create<ITweet>()
             |> FlowEx.select (fun tweet -> tweet.Coordinates)
 
-        let writeSink = Sink.ForEach<string>(fun text -> Console.WriteLine(text))
+        let writeSink = Sink.ForEach<string>(fun text -> effect text)
 
         let graph = GraphDsl.Create(fun buildBlock ->
             let broadcast = buildBlock.Add(Broadcast<ITweet>(2))
@@ -82,8 +82,8 @@ module TweetsWithThrottle =
 module TweetsWeatherWithThrottle =
     open System.Threading.Tasks
 
-    let create<'a>(tweetSource:Source<ITweet, 'a>) : IRunnableGraph<'a> =
-
+    let create<'a>(tweetSource:Source<ITweet, 'a>) effect : IRunnableGraph<'a> =
+        
         let formatUser =
             Flow.Create<IUser>()
             |> FlowEx.select (Utils.FormatUser)
@@ -106,7 +106,7 @@ module TweetsWeatherWithThrottle =
             } |> Async.StartAsTask
 
         let writeSink =
-            Sink.ForEach<string>(fun msg -> Console.WriteLine(msg))
+            Sink.ForEach<string>(fun msg -> effect msg)
 
         let selectAsync (parallelism:int) (asyncMapper:_ -> Task<_>) (flow:Flow<_, _,NotUsed>) =
             flow.SelectAsync(parallelism, Func<_, Task<_>>(asyncMapper))
@@ -165,7 +165,7 @@ module TweetsWithWeather =
         } |> Async.StartAsTask
 
 
-    let create<'a>(tweetSource:Source<ITweet, 'a>) =
+    let create<'a>(tweetSource:Source<ITweet, 'a>) effect =
 
         let formatUser =
             Flow.Create<IUser>()
@@ -182,7 +182,7 @@ module TweetsWithWeather =
         let createBy = Flow.Create<ITweet>().Select(fun tweet -> tweet.CreatedBy)
 
         let writeSink =
-            Sink.ForEach<string>(fun msg -> Console.WriteLine(msg))
+            Sink.ForEach<string>(fun msg -> effect msg)
 
         let selectAsync (parallelism:int) (asyncMapper:_ -> Task<_>) (flow:Flow<_, _,NotUsed>) =
             flow.SelectAsync(parallelism, Func<_, Task<_>>(asyncMapper))

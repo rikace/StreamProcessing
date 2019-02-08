@@ -11,20 +11,20 @@ module TweetsToConsole =
     open FlowEx
     // Simple implementation that read ~70Mb tweets from memory (load the tweets from local file-system) to generate high throughput
     
-    let inline create<'a>(tweetSource :Source<ITweet, 'a>) : IRunnableGraph<'a> =
+    let inline create<'a>(tweetSource : Source<ITweet, 'a>) effect : IRunnableGraph<'a> =
 
         let formatFlow =
             Flow.Create<ITweet>()
             |> select (Utils.FormatTweet)
 
-        let writeSink = Sink.ForEach<string>(fun text -> Console.WriteLine(text))
+        let writeSink = Sink.ForEach<string>(fun text -> effect text)
 
         tweetSource.Via(formatFlow).To(writeSink)
 
 module TweetsWithBroadcast =
    open FlowEx
     
-   let inline create(tweetSource:Source<ITweet, 'a>) =
+   let inline create(tweetSource:Source<ITweet, 'a>) effect =
         let formatUser =
             Flow.Create<IUser>()
             |> select (Utils.FormatUser)
@@ -41,7 +41,7 @@ module TweetsWithBroadcast =
             Flow.Create<ITweet>()
             |> select (fun tweet -> sprintf "Lat %f - Lng %f" tweet.Coordinates.Latitude tweet.Coordinates.Longitude)
 
-        let writeSink = Sink.ForEach<string>(fun text -> Console.WriteLine(text))
+        let writeSink = Sink.ForEach<string>(fun text -> effect text)
 
         let graph = GraphDsl.Create(fun buildBlock ->
             let broadcast = buildBlock.Add(Broadcast<ITweet>(2))

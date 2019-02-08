@@ -108,6 +108,7 @@ module Graph =
                         Color = marker.Emotion.toColor()
                     })
     
+            
             let temperatureFlow =
                 Flow.Create<ITweet * MarkerLocation>()
                 |> FlowEx.selectAsync 1 (fun (tweet, marker) -> task {
@@ -128,11 +129,11 @@ module Graph =
                  Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) ->  
                  agentUpdate.Post emotion
                  )
-                        
+            
             b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
             b.From(bcast.Out(0)).To(writeSink) |> ignore
             b.From(bcast.Out(1)).To(updateSink) |> ignore
-            
+          
             ClosedShape.Instance)              
         
         graph |> RunnableGraph.FromGraph
@@ -270,7 +271,12 @@ let startStreamingCache (graphType : GraphType) (update : MarkerLocation -> Asyn
    
     let materialize = GrapSystem.Materializer
     let source = new TweetEnumerator(true)
+    
     let tweetSource = Source.FromEnumerator(fun () -> source :> IEnumerator<ITweet>)
+
+    let tweetGroupedSource = Source.FromEnumerator(fun () -> source :> IEnumerator<ITweet>).GroupedWithin(100, TimeSpan.FromSeconds(1.5))
+    // use selectMany
+    
     let graph =
         match graphType with  
         | Sync -> Graph.create<NotUsed> update tweetSource
