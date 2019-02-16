@@ -14,7 +14,6 @@ using Tweetinvi.Models.Entities;
 using Stream = Tweetinvi.Stream;
 using System.Net.Http;
 using Tweetinvi.Core.Extensions;
-using static Reactive.Tweets.EmotionAnalysis;
 
 namespace Shared.Reactive
 {
@@ -80,7 +79,7 @@ namespace Shared.Reactive
 
         public static async Task<decimal> GetWeatherAsync(ICoordinates coordinate)
         {
-            using (var stream = File.OpenRead(@"../../../Tweets/weather.txt"))
+            using (var stream = File.OpenRead(@"../Tweets/weather.txt"))
             using (var reader = new StreamReader(stream))
             {
                 string json = await reader.ReadToEndAsync();
@@ -123,11 +122,6 @@ namespace Shared.Reactive
         public static string FormatTemperature(decimal temperature)
         {
             return $"------------------------------------{temperature}° Celcius";
-        }
-
-        public static string Emotion((ITweet, Emotion) arg)
-        {
-            return $"Text: {arg.Item1.Text}\n------------------------------------ {arg.Item2}";
         }
 
         public static string FormatLocation((ICoordinates, string) arg)

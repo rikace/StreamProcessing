@@ -31,10 +31,9 @@ type SentimentPrediction () =
 
 
 module ML =
-    let initPredictor (dataFile:string) = // ./data/imdb_labelled.txt
+    let initPredictor (dataFile:string) =
         let ml = new MLContext()
         let reader = ml.Data.CreateTextReader<SentimentData>(separatorChar = '\t', hasHeader = true)
-
       
         let allData = reader.Read(dataFile);
         let struct (trainData, testData) = ml.Clustering.TrainTestSplit(allData, testFraction = 0.3)
@@ -54,20 +53,18 @@ module ML =
           ml
             .Transforms.Text.FeaturizeText("SentimentText", "Features")
             .Append(ml.BinaryClassification.Trainers.FastForest())
-            // Example of custom hyperparameters
             .Append(ml.BinaryClassification.Trainers.FastForest(numTrees = 500, numLeaves = 100, learningRate = 0.0001))
         let model = pipeline.Fit(trainData)
 
         model.CreatePredictionEngine<SentimentData, SentimentPrediction>(ml)
     
-    let saveModel (ml:MLContext) model (path:string) = //"test-model.zip"
+    let saveModel (ml:MLContext) model (path:string) =
       use fsWrite = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Write)
       ml.Model.Save(model, fsWrite)
 
     
-
     // Load model from file
-    let loadModel (path:string) = // "test-model.zip"
+    let loadModel (path:string) =
         
         use fsRead = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)
         let mlReloaded = MLContext()

@@ -6,8 +6,6 @@ open Fable.Helpers.React
 open Fable.Helpers.React.Props
 open Fable.PowerPack.Fetch
 open Fable
-open Fable.Recharts
-open Fable.Recharts.Props
 open Shared
 open Fulma
 open System
@@ -48,6 +46,7 @@ type Model = {
 
 type Msg =
     | LoadSentimentPin of MarkerLocation
+    | LoadSentimentPins of MarkerLocation[]
     | Initalized
     | Failed
     | Reset
@@ -55,13 +54,12 @@ type Msg =
     | Start
     | StartAsync
     | StartParallel
+
+let initialModel () = { Pins = [] }      
     
 let init() : Model * Cmd<Msg> =
-    let initialModel = { 
-     //   Map = myMap []
-        Pins = []
-    }
-     initialModel, Cmd.none
+      
+    initialModel(), Cmd.none
      
 let button color txt onClick =
     Button.button [Button.IsFullWidth
@@ -89,14 +87,19 @@ let update (msg : Msg) (currentModel : Model) : Model * Cmd<Msg> =
         let cmd =
             Cmd.ofPromise (fun _ -> postRecord "/api/startparallel" 3 []) () (fun _ -> Initalized) (fun _ -> Failed)
         currentModel, cmd        
-    | Initalized -> currentModel, Cmd.none
+    | Initalized -> initialModel(), Cmd.none
     | Failed -> currentModel, Cmd.none
+    | LoadSentimentPins ds ->
+       let data =
+           printfn "received ### %d" ds.Length
+           let newPins = ds |> Seq.map(fun d -> initMarker (currentModel.Pins.Length + 1) d) |> Seq.toList
+           newPins |> List.append currentModel.Pins           
+       {currentModel with Pins = data }, Cmd.none
     | LoadSentimentPin d -> 
-           // console.log("pin arrived " + d.Color)
-           let data = 
-               let newPin = initMarker (currentModel.Pins.Length + 1) d
-               newPin::currentModel.Pins
-           {currentModel with Pins = data  }, Cmd.none
+       let data =
+           let newPin = initMarker (currentModel.Pins.Length + 1) d
+           newPin::currentModel.Pins
+       {currentModel with Pins = data }, Cmd.none
             
 let view (model : Model) (dispatch : Msg -> unit) =
    div [] 
@@ -136,18 +139,22 @@ let start initial =
             match pointRes with
             | Error msg -> console.log ("Socket msg failed:", msg)
             | Ok msg when msg.Type = "pinsentiment" -> 
-                // console.log ("Socket received message:", msg)
                 msg.Data
                 |> unbox<MarkerLocation>
                 |> LoadSentimentPin
                 |> dispatch
+            | Ok msg when msg.Type = "pinsentiments" ->
+                printfn "received pinsentiments ### %O" msg.Data
+                msg.Data
+                |> unbox<MarkerLocation[]>
+                |> LoadSentimentPins
+                |> dispatch                
             | _ -> failwith "not supported socket registration")
         socket.addEventListener_close (fun _ -> console.log "Socket closed")
     Cmd.ofSub sub
     
     
 #if DEBUG
-
 open Elmish.Debug
 open Elmish.HMR
 #endif

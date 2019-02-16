@@ -1,16 +1,28 @@
 module Common
 
-
-open System
 open System.Threading
-open System.Collections.Concurrent
 open System.IO
 open System.Net
 open System.Text.RegularExpressions
 
-
 type Agent<'a> = MailboxProcessor<'a>
 
+type Msg<'a, 'b> =
+| Item of 'a
+| Mailbox of Agent<Msg<'a, 'b>>
+    
+let httpRgx =
+    new ThreadLocal<Regex>(fun () -> new Regex(@"^(http|https|www)://.*$"))
+    
+let printerAgent (token : CancellationToken) = 
+    Agent.Start((fun inbox -> async {
+      while true do 
+        let! msg = inbox.Receive()                
+        match msg with
+        | Item(t) -> printfn "%s" t
+        | Mailbox(agent) -> failwith "no implemented"}), cancellationToken = token)
+    
+        
 let downloadContent (url : string) = async {
     try
         let req = WebRequest.Create(url) :?> HttpWebRequest
@@ -28,4 +40,3 @@ let downloadContent (url : string) = async {
     with
     | _ -> return None
 }
-

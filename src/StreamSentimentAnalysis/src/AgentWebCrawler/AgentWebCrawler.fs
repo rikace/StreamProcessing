@@ -11,23 +11,8 @@ open System.Text.RegularExpressions
 open Common
 
 module SyncWebCrawler =
-    
-    type Msg<'a, 'b> =
-    | Item of 'a
-    | Mailbox of Agent<Msg<'a, 'b>>
-    and ItemFilter<'a> = 'a -> bool    
-    
-    let cts = new CancellationTokenSource()
-                    
-    let httpRgx = new Regex(@"^(http|https|www)://.*$") // TODO threadlocal
 
-    let printerAgent = 
-        Agent.Start((fun inbox -> async {
-          while true do 
-            let! msg = inbox.Receive()                
-            match msg with
-            | Item(t) -> printfn "%s" t
-            | Mailbox(agent) -> failwith "no implemented"}), cancellationToken = cts.Token)
+    let cts = new CancellationTokenSource()
         
     let fetchContetAgent (limit : int option) =
         let token = cts.Token
@@ -86,7 +71,7 @@ module SyncWebCrawler =
                             if n.Attributes.Contains("src") then
                                 n.GetAttributeValue("src", "") |> Some
                             else None)
-                        |> Seq.filter(fun url -> httpRgx.IsMatch(url))
+                        |> Seq.filter(fun url -> httpRgx.Value.IsMatch(url))
                                 
                     for imgLink in imageLinks do
                         agents |> Seq.iter(fun agent -> agent.Post (Item(imgLink)))
@@ -114,7 +99,7 @@ module SyncWebCrawler =
                             if n.Attributes.Contains("href") then
                                 n.GetAttributeValue("href", "") |> Some
                             else None)
-                        |> Seq.filter(fun url -> httpRgx.IsMatch(url))
+                        |> Seq.filter(fun url -> httpRgx.Value.IsMatch(url))
                                 
                     for link in links do
                         agents |> Seq.iter(fun agent -> agent.Post (Item(link)))
@@ -172,8 +157,8 @@ module SyncWebCrawler =
             fetchContetAgent.Post (Mailbox(contentBroadcaster))    
             contentBroadcaster.Post (Mailbox(imageParserAgent))
             contentBroadcaster.Post (Mailbox(linksParserAgent))
-            contentBroadcaster.Post (Mailbox(printerAgent))
-            linkBroadcaster.Post (Mailbox(printerAgent))
+            contentBroadcaster.Post (Mailbox(printerAgent cts.Token))
+            linkBroadcaster.Post (Mailbox(printerAgent cts.Token))
             imageParserAgent.Post (Mailbox(saveImageAgent))        
             linksParserAgent.Post (Mailbox(linkBroadcaster))
             linkBroadcaster.Post (Mailbox(saveImageAgent))

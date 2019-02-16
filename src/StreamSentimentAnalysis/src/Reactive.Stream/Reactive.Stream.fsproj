@@ -11,8 +11,6 @@
     </Compile>
     <Compile Include="Benchmark.fs" />
     <Compile Include="MLearning.fs" />
-    <Compile Include="Reactive.Demos.1.fs" />
-    <Compile Include="Reactive.Demos.2.fs" />
     <Compile Include="TweetStreaming.fs" />
     <Compile Include="WebCrawler.fs" />
     <Compile Include="Program.fs" />

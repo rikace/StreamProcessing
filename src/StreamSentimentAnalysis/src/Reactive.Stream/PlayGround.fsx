@@ -47,8 +47,6 @@ module Source =
     let inline mapAsync parallelism (mapper: 'a -> Async<'b>) (src: Source<_,_>) =
         src.SelectAsync(parallelism, fun x -> Async.StartAsTask (mapper x))
 
-let system = System.create "streams-sys" <| Configuration.defaultConfig()
-let materializer = system.Materializer()
 
 let text = """
        Lorem Ipsum is simply dummy text of the printing and typesetting industry.
@@ -56,8 +54,9 @@ let text = """
        when an unknown printer took a galley of type and scrambled it to make a type
        specimen book."""
 
+let system = ActorSystem.Create("Reactive-System")
+let materializer = system.Materializer()
 // 1. Basic stream transformation
-
 Source.ofArray (text.Split())
 |> Source.map (fun x -> x.ToUpper())
 |> Source.filter (String.IsNullOrWhiteSpace >> not)
@@ -65,10 +64,18 @@ Source.ofArray (text.Split())
 |> Async.RunSynchronously
 
 
-
+//let helloWorld : RunnableGraph<_> =    
+//  Source.Single("Hello world")
+//      .Via(Flow.Create<string>().Select(fun str -> str.ToUpper()))
+//      .To(Sink.forEach(fun s -> printfn "Received: %s" s))
+//
+//let helloWorld : RunnableGraph<_> =    
+//  Source.Single("Hello world")
+//      .map(fun str -> str.ToUpper())
+//      .to(Sink.forEach(printfn "Received: %s"))
 
 // Actor Interop
-let behavior targetRef (m:Actor<_>) =
+let behavior (targetRef:ICanTell<'b>) (m:Actor<'a>) =
     let rec loop () = actor {
         let! msg = m.Receive ()
         printfn "Actor received : %O" msg
@@ -86,6 +93,10 @@ let s = Source.actorRef OverflowStrategy.DropNew 1000
         |> Graph.run materializer
 
 s <! "My Message"
+
+
+
+
 
 
 
@@ -176,9 +187,7 @@ let spin (value: int) =
         Thread.Yield() |> ignore
     value
 
-spin 10
-
-let spawn f x = (f x |> async.Return)
+let spawn f x = async { return f x }
 
 
 // This implementation will execute synchronously, on a single thread, and take approximately twice as long as the following implementation,
@@ -222,7 +231,14 @@ let runAsyncParallelFutures () =
 
 runAsyncParallelFutures() |> Async.RunSynchronously
 
-  
+let runAsyncParallelBuffer () =
+    let n = 4
+    Source.ofList [1..count]
+    |> Source.asyncMap n (fun i -> spawn spin i)
+    |> Source.buffer 16 OverflowStrategy.Backpressure
+    |> Source.asyncMap n (fun i -> spawn spin i)
+    |> Source.buffer 16 OverflowStrategy.Backpressure
+    |> Source.runWith materializer Sink.ignore  
   
 
 module AgentEx =

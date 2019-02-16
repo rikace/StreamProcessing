@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Linq;
+
 namespace WebCrawler
 {
     using System;
@@ -12,15 +15,41 @@ namespace WebCrawler
         
     public static class DataFlowCrawler
     {
-
+        private static ConsoleColor[] colors = new ConsoleColor[]
+        {
+            ConsoleColor.Black,
+            ConsoleColor.DarkBlue,
+            ConsoleColor.DarkGreen,
+            ConsoleColor.DarkCyan,
+            ConsoleColor.DarkRed,
+            ConsoleColor.DarkMagenta,
+            ConsoleColor.DarkYellow,
+            ConsoleColor.Gray,
+            ConsoleColor.DarkGray,
+            ConsoleColor.Blue,
+            ConsoleColor.Green,
+            ConsoleColor.Cyan,
+            ConsoleColor.Red,
+            ConsoleColor.Magenta,
+            ConsoleColor.Yellow,
+            ConsoleColor.White
+        };
+        static int index = 0;
+        static ConcurrentDictionary<int, ConsoleColor> mapColors = new ConcurrentDictionary<int, ConsoleColor>();
+        private static ConsoleColor ColorByInt(int id)
+        {   
+            
+            return mapColors.GetOrAdd(id, _ => colors[Interlocked.Increment(ref index) % (colors.Length - 1)]);
+            
+        }
+        
         private static void WriteLineInColor(string message, ConsoleColor foregroundColor)
         {
             Console.ForegroundColor = foregroundColor;
             Console.WriteLine(message);
             Console.ResetColor();
         }
-        
-            
+
         private const string LINK_REGEX_HREF = "\\shref=('|\\\")?(?<LINK>http\\://.*?(?=\\1)).*>";
         private static readonly Regex _linkRegexHRef = new Regex(LINK_REGEX_HREF);
         private const string IMG_REGEX = "<\\s*img [^\\>]*src=('|\")?(?<IMG>http\\://.*?(?=\\1)).*>\\s*([^<]+|.*?)?\\s*</a>";
@@ -41,7 +70,7 @@ namespace WebCrawler
 
 
             var printer = new ActionBlock<string>(text =>
-            {
+            {         
                 Console.WriteLine($"Recveied text - Thread ID {Thread.CurrentThread.ManagedThreadId}");
             });
 
@@ -52,11 +81,8 @@ namespace WebCrawler
                 downloader.Post(url);
             }
 
-
-
             // Step 2
             var contentBroadcaster = new BroadcastBlock<string>(s => s);
-
 
             var linkParser = new TransformManyBlock<string, string>(
                 (html) =>
@@ -97,16 +123,7 @@ namespace WebCrawler
                 // using IOCP the thread pool worker thread does return to the pool
                 byte[] buffer = await wc.DownloadDataTaskAsync(url);
                 
-
                 await compute(url, buffer);
-
-//                string fileName = Path.GetFileName(url);
-//                string name = @"Images\" + fileName;
-//
-//                using (Stream srm = File.OpenWrite(name))
-//                {
-//                    await srm.WriteAsync(buffer, 0, buffer.Length);
-//                }
             });
 
             StringComparison comparison = StringComparison.InvariantCultureIgnoreCase;

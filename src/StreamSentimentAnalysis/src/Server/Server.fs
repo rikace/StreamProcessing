@@ -36,7 +36,7 @@ let start next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
                 })
         tks <- Some(new CancellationTokenSource())             
         Task.Factory.StartNew((fun () ->
-            disposable <- Some (ServerStreams.startStreamingCache GraphType.Sync update)),tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
+            disposable <- Some (ServerStreams.startStreamingCache GraphType.Sync)),tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
         return! json "Started!" next ctx
     }
 
@@ -50,7 +50,7 @@ let startAsync next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
                 })
         tks <- Some(new CancellationTokenSource())            
         Task.Factory.StartNew((fun () ->
-            disposable <- Some (ServerStreams.startStreamingCache GraphType.Async update)), tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
+            disposable <- Some (ServerStreams.startStreamingCache GraphType.Async)), tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
         return! json "Started!" next ctx
     }
 
@@ -64,7 +64,7 @@ let startParallel next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
                 })   
         tks <- Some(new CancellationTokenSource())
         Task.Factory.StartNew((fun () ->
-            disposable <- Some (ServerStreams.startStreamingCache GraphType.Parallel update)), tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
+            disposable <- Some (ServerStreams.startStreamingCache GraphType.Parallel)), tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
         return! json "Started!" next ctx
     }
     

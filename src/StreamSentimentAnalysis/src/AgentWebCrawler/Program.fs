@@ -11,4 +11,4 @@ let main argv =
     Console.ReadLine() |> ignore
     
     agent.Dispose()
-    0 // return an integer exit code
+    0

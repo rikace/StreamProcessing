@@ -12,15 +12,8 @@ open Common
 
 module ParallelWebCrawler =
     
-    type Msg<'a, 'b> =
-    | Item of 'a
-    | Mailbox of Agent<Msg<'a, 'b>>
-
     let cts = new CancellationTokenSource()
                     
-    let httpRgx = new Regex(@"^(http|https|www)://.*$") // TODO threadlocal
-    
-        
     let parallelWorker n f =
         let agents = Array.init n (fun _ ->
             Agent<Msg<'a, 'b>>.Start(f, cancellationToken = cts.Token))
@@ -42,14 +35,6 @@ module ParallelWebCrawler =
         token.Register(fun () -> agents |> Seq.iter(fun agent -> (agent :> IDisposable).Dispose())) |> ignore
         agent.Start()
         agent
-        
-    let printerAgent = 
-        Agent.Start((fun inbox -> async {
-          while true do 
-            let! msg = inbox.Receive()                
-            match msg with
-            | Item(t) -> printfn "%s" t
-            | Mailbox(agent) -> failwith "no implemented"}), cancellationToken = cts.Token)
         
     let fetchContetAgent (limit : int option) =
         parallelWorker 4 (fun inbox ->
@@ -102,7 +87,7 @@ module ParallelWebCrawler =
                             if n.Attributes.Contains("src") then
                                 n.GetAttributeValue("src", "") |> Some
                             else None)
-                        |> Seq.filter(fun url -> httpRgx.IsMatch(url))
+                        |> Seq.filter(fun url -> httpRgx.Value.IsMatch(url))
                                 
                     for imgLink in imageLinks do
                         agents |> Seq.iter(fun agent -> agent.Post (Item(imgLink)))
@@ -127,7 +112,7 @@ module ParallelWebCrawler =
                             if n.Attributes.Contains("href") then
                                 n.GetAttributeValue("href", "") |> Some
                             else None)
-                        |> Seq.filter(fun url -> httpRgx.IsMatch(url))
+                        |> Seq.filter(fun url -> httpRgx.Value.IsMatch(url))
                                 
                     for link in links do
                         agents |> Seq.iter(fun agent -> agent.Post (Item(link)))
@@ -177,15 +162,15 @@ module ParallelWebCrawler =
         let linksParserAgent = linksParserAgent ()
         
         do  
-            fetchContetAgent.Post (Mailbox(contentBroadcaster))    
+            fetchContetAgent.Post   (Mailbox(contentBroadcaster))    
             contentBroadcaster.Post (Mailbox(imageParserAgent))
             contentBroadcaster.Post (Mailbox(linksParserAgent))
-            contentBroadcaster.Post (Mailbox(printerAgent))
-            linkBroadcaster.Post (Mailbox(printerAgent))
-            imageParserAgent.Post (Mailbox(saveImageAgent))        
-            linksParserAgent.Post (Mailbox(linkBroadcaster))
-            linkBroadcaster.Post (Mailbox(saveImageAgent))
-            linkBroadcaster.Post (Mailbox(fetchContetAgent))
+            contentBroadcaster.Post (Mailbox(printerAgent cts.Token))
+            linkBroadcaster.Post    (Mailbox(printerAgent cts.Token))
+            imageParserAgent.Post   (Mailbox(saveImageAgent))        
+            linksParserAgent.Post   (Mailbox(linkBroadcaster))
+            linkBroadcaster.Post    (Mailbox(saveImageAgent))
+            linkBroadcaster.Post    (Mailbox(fetchContetAgent))
         
         member __.Submit(url : string) = fetchContetAgent.Post(Item(url))
         

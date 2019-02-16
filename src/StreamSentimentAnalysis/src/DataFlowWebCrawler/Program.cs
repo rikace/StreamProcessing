@@ -8,8 +8,6 @@ namespace WebCrawler
     {
         static void Main(string[] args)
         {
-           
-
             var urls = new List<string>();
 
             DataFlowCrawler.Start(urls, async (url, buffer) =>
@@ -22,7 +20,8 @@ namespace WebCrawler
                     await srm.WriteAsync(buffer, 0, buffer.Length);
                 }
             });
-            Console.WriteLine("Hello World!");
+
+            Console.ReadLine();
         }
     }
 }

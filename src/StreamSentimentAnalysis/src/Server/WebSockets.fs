@@ -27,7 +27,7 @@ let private sendMessage =
             let segment = new ArraySegment<byte>(buffer)
             if socket.State = WebSocketState.Open then 
                 do! socket.SendAsync(segment, WebSocketMessageType.Text, true, CancellationToken.None)
-            else SocketRegistry.Remove socket
+            else SocketRegistry.Remove socket |> ignore
         }
 
 let sendMessageToSockets =
@@ -36,7 +36,7 @@ let sendMessageToSockets =
             for socket in SocketRegistry.Items do
                 try 
                     do! sendMessage socket message
-                with _ -> SocketRegistry.Remove socket
+                with _ -> SocketRegistry.Remove socket |> ignore 
         }
 
 type WebSocketMiddleware(next : RequestDelegate) =

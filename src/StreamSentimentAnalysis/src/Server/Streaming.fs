@@ -47,7 +47,7 @@ module Temperature =
         fun x -> dict.GetOrAdd(Some x, lazy (f x)).Force()
         
     let xn s = XName.Get s
-    let getAsync (coordinates:ICoordinates) =
+    let getAsync (coordinates : ICoordinates) =
         async {
             use httpClient = new System.Net.WebClient()
             let requestUrl = sprintf "http://api.met.no/weatherapi/locationforecast/1.9/?lat=%f;lon=%f" coordinates.Latitude coordinates.Latitude
@@ -58,26 +58,56 @@ module Temperature =
             let temp = doc.Root.Descendants(xn "temperature").First().Attribute(xn "value").Value
             return Decimal.Parse(temp)
         }  
+    
+    let getFromFileAsync (coordinates : ICoordinates) = async {
+        return! Shared.Reactive.Utils.GetWeatherAsync(coordinates) |> Async.AwaitTask
+    }
         
     let getAsyncMemoized : ICoordinates -> Async<decimal> = getAsync |> memoize       
-        
+    let getFileAsyncMemoized : ICoordinates -> Async<decimal> = getFromFileAsync |> memoize       
         
 module Graph =    
+    open System
+    open System
     open StreamingCombinators
     open Helpers
     open Akkling.Streams
+    open Akkling.Streams
     open Analysis
     
-    let agentUpdate update =
+    type MarkerMsg =
+        | Marker of MarkerLocation
+        | Markers of MarkerLocation array
+    
+    let printColor (marker : MarkerLocation) (msg : string) =
+        let color = Console.ForegroundColor
+        Console.ForegroundColor <-
+            match marker.Emotion.toColor() with 
+            | "red" -> ConsoleColor.Red
+            | "green" -> ConsoleColor.Green
+            | "blue" -> ConsoleColor.Cyan
+            | _ -> ConsoleColor.Yellow
+        printfn "%s" msg
+        Console.ForegroundColor <- color
+            
+    let agentUpdate =
         MailboxProcessor.Start(fun inbox -> async {
                 while true do
-                    let! (msg : MarkerLocation) = inbox.Receive()                                        
-                    do! update msg})
+                    let! (msg : MarkerMsg) = inbox.Receive()
+                    match msg with
+                    | Marker m ->
+                        let model = {Type = "pinsentiment"; Data = m}
+                        let jsonData = Thoth.Json.Net.Encode.Auto.toString (2, model)
+                        do! WebSockets.sendMessageToSockets jsonData |> Async.AwaitTask
+                    | Markers ms ->
+                        printfn "send data 2"
+                        let model = {Type = "pinsentiments"; Data = ms}
+                        let jsonData = Thoth.Json.Net.Encode.Auto.toString (2, model)
+                        do! WebSockets.sendMessageToSockets jsonData |> Async.AwaitTask
+                    })
   
-    let create<'a> update (tweetSource:Source<ITweet, 'a>) =        
+    let create<'a> (tweetSource:Source<ITweet, 'a>) =        
         
-        let agentUpdate = agentUpdate update
-
         let runPrediction =
              let sentimentModel = ML.loadModel "../Data/model.zip"
              ML.runPrediction sentimentModel
@@ -88,7 +118,7 @@ module Graph =
             
             let bcast = b.Add(new Broadcast<_>(2))
             
-            let formatFlow =
+            let sentimentAnalysisFlow =
                 Flow.Create<ITweet>()
                 |> FlowEx.select (fun tweet ->
                      tweet, { zeroMarker with Emotion = { EmotionType.emotion = scoreSentiment tweet.Text  } })
@@ -107,12 +137,11 @@ module Graph =
                         Lng = tweet.Coordinates.Longitude
                         Color = marker.Emotion.toColor()
                     })
-    
-            
+                
             let temperatureFlow =
                 Flow.Create<ITweet * MarkerLocation>()
                 |> FlowEx.selectAsync 1 (fun (tweet, marker) -> task {
-                    let! temperature = Temperature.getAsyncMemoized tweet.Coordinates
+                    let! temperature = Temperature.getFileAsyncMemoized tweet.Coordinates
                     return tweet, 
                     { marker with
                         Temperature = temperature
@@ -120,17 +149,16 @@ module Graph =
                  })
 
             let writeSink =
-                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) -> 
-                    // TODO add colors
-                    printfn "[ %s ] - Tweet [ %s ]" (string emotion) tweet.Text
+                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, marker) -> 
+                    printColor marker (sprintf "[ %s ] - Tweet [ %s ]" (string marker.Emotion) tweet.Text)
                  )
                  
             let updateSink =
                  Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) ->  
-                 agentUpdate.Post emotion
+                 agentUpdate.Post (Marker emotion)// update UI
                  )
-            
-            b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
+
+            b.From(tweetSource).Via(sentimentAnalysisFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
             b.From(bcast.Out(0)).To(writeSink) |> ignore
             b.From(bcast.Out(1)).To(updateSink) |> ignore
           
@@ -139,10 +167,8 @@ module Graph =
         graph |> RunnableGraph.FromGraph
 
     
-    let createAsync<'a> update (tweetSource:Source<ITweet, 'a>) =        
-        
-        let agentUpdate = agentUpdate update
-
+    let createAsync<'a> (tweetSource:Source<ITweet, 'a>) =        
+       
         let runPrediction =
              let sentimentModel = ML.loadModel "../Data/model.zip"
              ML.runPrediction sentimentModel
@@ -179,26 +205,25 @@ module Graph =
             let temperatureFlow =
                 Flow.Create<ITweet * MarkerLocation>()
                 |> FlowEx.selectAsync 1 (fun (tweet, marker) -> task {
-                    let! temperature = Temperature.getAsyncMemoized tweet.Coordinates
+                    // let! temperature = Temperature.getAsyncMemoized tweet.Coordinates
+                    let! temperature = Temperature.getFileAsyncMemoized tweet.Coordinates
                     return tweet, 
-                    { marker with
-                        Temperature = temperature
-                    }
+                    { marker with Temperature = temperature }
                  })
                  |> FlowEx.async
                  
             let writeSink =
-                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) -> 
-                    // TODO add colors
-                    printfn "[ %s ] - Tweet [ %s ]" (string emotion) tweet.Text
+                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, marker) -> 
+                    printColor marker (sprintf "[ %s ] - Tweet [ %s ]" (string marker.Emotion) tweet.Text)
                  )
                  
             let updateSink =
                  Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) ->  
-                 agentUpdate.Post emotion
+                 agentUpdate.Post (Marker emotion)
                  )
                         
-            b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
+            //b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
+            b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(temperatureFlow).Via(coordinateFlow).To(bcast) |> ignore
             b.From(bcast.Out(0)).To(writeSink) |> ignore
             b.From(bcast.Out(1)).To(updateSink) |> ignore
             
@@ -206,11 +231,72 @@ module Graph =
               
         graph |> RunnableGraph.FromGraph              
 
-
-    let createParallelAsync<'a> update parallelism (tweetSource:Source<ITweet, 'a>) =        
+    let createParallelAsync<'a> parallelism (tweetSource:Source<ITweet, 'a>) =        
         
-        let agentUpdate = agentUpdate update
-
+        let runPrediction =
+             let sentimentModel = ML.loadModel "../Data/model.zip"
+             ML.runPrediction sentimentModel
+             
+        let scoreSentiment = runPrediction >> ML.scorePrediction >> normalize
+             
+        let graph = Graph.create(fun b ->
+            
+            let bcast = b.Add(new Broadcast<_>(2))
+            
+            let formatFlow =
+                Flow.Create<ITweet>()
+                |> FlowEx.select (fun tweet ->
+                    tweet, { zeroMarker with Emotion = { EmotionType.emotion = scoreSentiment tweet.Text  } })
+                |> FlowEx.async
+                
+            let flowCreateBy =
+                Flow.Create<ITweet * MarkerLocation>()
+                |> FlowEx.select (fun (tweet, marker) ->
+                    tweet, { marker with Title = either tweet.CreatedBy.ScreenName tweet.CreatedBy.Name })
+                |> FlowEx.async
+                
+            let coordinateFlow =
+                Flow.Create<ITweet * MarkerLocation>()
+                |> FlowEx.asyncMapUnordered parallelism (fun (tweet, marker) -> async {
+                    return tweet,
+                     { marker with
+                        Lat = tweet.Coordinates.Latitude
+                        Lng = tweet.Coordinates.Longitude
+                        Color = marker.Emotion.toColor()
+                    }})
+                |> FlowEx.async
+                
+            let temperatureFlow =
+                Flow.Create<ITweet * MarkerLocation>()
+                |> FlowEx.asyncMapUnordered parallelism (fun (tweet, marker) -> async {
+                    // let! temperature = Temperature.getAsyncMemoized tweet.Coordinates
+                    let! temperature = Temperature.getFileAsyncMemoized tweet.Coordinates
+                    return tweet, 
+                    { marker with Temperature = temperature }
+                 })
+                 |> FlowEx.async
+                 
+            let writeSink =
+                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, marker) -> 
+                    printColor marker (sprintf "[ %s ] - Tweet [ %s ]" (string marker.Emotion) tweet.Text)
+                 )
+                 
+            let updateSink =
+                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) ->  
+                 agentUpdate.Post (Marker emotion)
+                 )
+                        
+            //b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
+            b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(temperatureFlow).Via(coordinateFlow).To(bcast) |> ignore
+            b.From(bcast.Out(0)).To(writeSink) |> ignore
+            b.From(bcast.Out(1)).To(updateSink) |> ignore
+            
+            ClosedShape.Instance)              
+        
+        graph |> RunnableGraph.FromGraph
+        
+    let createParallelAsyncGrouped<'a> parallelism (tweetSource:Source<ITweet, 'a>) =        
+        
         let runPrediction =
              let sentimentModel = ML.loadModel "../Data/model.zip"
              ML.runPrediction sentimentModel
@@ -225,11 +311,13 @@ module Graph =
                 Flow.Create<ITweet>()
                 |> FlowEx.asyncMapUnordered parallelism (fun tweet -> async {
                     return tweet, { zeroMarker with Emotion = { EmotionType.emotion = scoreSentiment tweet.Text  } }})
+                |> FlowEx.async
                 
             let flowCreateBy =
                 Flow.Create<ITweet * MarkerLocation>()
                 |> FlowEx.asyncMapUnordered parallelism (fun (tweet, marker) -> async {
                     return tweet, { marker with Title = either tweet.CreatedBy.ScreenName tweet.CreatedBy.Name }})
+                |> FlowEx.async
                 
             let coordinateFlow =
                 Flow.Create<ITweet * MarkerLocation>()
@@ -240,6 +328,7 @@ module Graph =
                             Lng = tweet.Coordinates.Longitude
                             Color = marker.Emotion.toColor()
                         }})
+                |> Flow.groupedWithin 10 (TimeSpan.FromSeconds(2.))
     
             let temperatureFlow =
                 Flow.Create<ITweet * MarkerLocation>()
@@ -247,16 +336,19 @@ module Graph =
                     let! temperature = Temperature.getAsyncMemoized tweet.Coordinates
                     return tweet, { marker with Temperature = temperature }
                  })
+                |> FlowEx.async
 
             let writeSink =
-                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) -> 
-                    // TODO add colors
-                    printfn "[ %s ] - Tweet [ %s ]" (string emotion) tweet.Text
+                 Sink.ForEach<(ITweet * MarkerLocation) seq>(fun tweets ->
+                    for (tweet, marker) in tweets do
+                        printColor marker (sprintf "[ %s ] - Tweet [ %s ]" (string marker.Emotion) tweet.Text)
                  )
                  
             let updateSink =
-                 Sink.ForEach<ITweet * MarkerLocation>(fun (tweet, emotion) ->  
-                 agentUpdate.Post emotion )
+                 Sink.ForEach<(ITweet * MarkerLocation) seq>(fun tweets ->
+                    //tweets |> Seq.head |> snd |> Marker |> agentUpdate.Post )
+                    printfn "send data 1"
+                    tweets |> Seq.map snd |> Seq.toArray |> Markers |> agentUpdate.Post )
            
             b.From(tweetSource).Via(formatFlow).Via(flowCreateBy).Via(coordinateFlow).To(bcast) |> ignore
             b.From(bcast.Out(0)).To(writeSink) |> ignore
@@ -267,21 +359,17 @@ module Graph =
         graph |> RunnableGraph.FromGraph
 
 
-let startStreamingCache (graphType : GraphType) (update : MarkerLocation -> Async<unit>) =
+let startStreamingCache (graphType : GraphType) =
    
     let materialize = GrapSystem.Materializer
-    let source = new TweetEnumerator(true)
-    
+    let source = new TweetEnumerator(true)    
     let tweetSource = Source.FromEnumerator(fun () -> source :> IEnumerator<ITweet>)
-
-    let tweetGroupedSource = Source.FromEnumerator(fun () -> source :> IEnumerator<ITweet>).GroupedWithin(100, TimeSpan.FromSeconds(1.5))
-    // use selectMany
     
     let graph =
         match graphType with  
-        | Sync -> Graph.create<NotUsed> update tweetSource
-        | Async -> Graph.createAsync<NotUsed> update tweetSource
-        | Parallel -> Graph.createParallelAsync<NotUsed> update 4 tweetSource
+        | Sync -> Graph.create<NotUsed> tweetSource
+        | Async -> Graph.createAsync<NotUsed> tweetSource
+        | Parallel -> Graph.createParallelAsync<NotUsed> 8 tweetSource
         
     graph.Run(materialize) |> ignore
     
@@ -296,7 +384,7 @@ let startStreamingLive update =
     Auth.SetCredentials(new TwitterCredentials(Config.consumerKey, Config.consumerSecret, Config.accessToken, Config.accessTokenSecret))
 
     let tweetSource = Source.ActorRef<ITweet>(100, OverflowStrategy.DropBuffer)
-    let graph = Graph.create<IActorRef> update tweetSource
+    let graph = Graph.create<IActorRef> tweetSource
     
     // let graph = Graph.createAsync<IActorRef> update tweetSource
     // let graph = Graph.createParallelAsync<IActorRef> update 4 tweetSource

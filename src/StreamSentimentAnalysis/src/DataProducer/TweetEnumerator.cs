@@ -15,7 +15,6 @@ namespace Shared.Reactive.Tweets
 
         public TweetEnumerator(bool loop, string filePath = @"../Tweets/tweets.txt")
         {
-            Console.WriteLine($"Tweet Find {File.Exists(filePath).ToString()}"    );
             this.loop = loop;
             this._filePath = filePath;
             Reset();

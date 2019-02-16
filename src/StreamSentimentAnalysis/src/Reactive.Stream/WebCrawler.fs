@@ -26,32 +26,17 @@ open Akkling.Streams
 open CsQuery
 open Akka.FSharp
 open Akka.FSharp.Actors
+open Akkling.Streams
 
 let resolveLinks (uri : Uri, cq : CQ) = seq {
     for link in cq.["a[href]"] do
-       // printfn "link - %O" link
         let href = link.GetAttribute("href")
-      //  printfn "href - %O" href
         let mutable uriResult = Unchecked.defaultof<Uri>
         if Uri.TryCreate(href, UriKind.Absolute, &uriResult) then
-        //    printfn "resolveLinks -1- %O..." uriResult
             yield uriResult
         elif Uri.TryCreate(uri, href, &uriResult) then
-        //    printfn "resolveLinks -2- %O..." uriResult
             yield uriResult
     }
-
-let downloadPage (uri : Uri) = 
-    printfn "downloading %O..." uri 
-    let req = WebRequest.CreateHttp(uri)
-    let resp = req.GetResponse()
-    use stream = resp.GetResponseStream()
-    if isNull stream then uri, CQ()
-    else
-        use reader = new StreamReader(stream)
-        let html = reader.ReadToEnd()
-        uri, CQ.CreateDocument(html)
-       
 
 let downloadPageAsync (uri : Uri) = async {
     printfn "downloading %O..." uri 
@@ -74,16 +59,15 @@ let webCrawler () : IGraph<FlowShape<Uri, Uri>, NotUsed> =
         let merge = b.Add(new MergePreferred<Uri>(1))
         let bcast = b.Add(new Broadcast<Uri>(2))
         
-        // async downlad page from provided uri
-        // resolve links from it        
+        // async downlad page from provided uri resolve links from it        
         let flow =
             Flow.empty<Uri, _>
             |> Flow.filter(fun uri -> index.TryAdd(uri))
             |> Flow.asyncMapUnordered 4 downloadPageAsync
+            |> Flow.async
             |> Flow.collect resolveLinks
 
-        // feedback loop - take only those elements,
-        // which were successfully added to index (unique)
+        // feedback loop - take only those elements, which were successfully added to index (unique)
         let flowBack =
             Flow.empty<Uri, _>
             |> Flow.choose(fun uri -> if index.Contains uri then None else Some uri)
@@ -93,13 +77,12 @@ let webCrawler () : IGraph<FlowShape<Uri, Uri>, NotUsed> =
         let pipe = b.From(merge).Via(flow).To(bcast)
         b.From(bcast).Via(flowBack).To(merge.Preferred) |> ignore
         
-        new FlowShape<Uri, Uri>(merge.In(0), bcast.Out(1)))
-    
-    graph        
-        
+        new FlowShape<Uri, Uri>(merge.In(0), bcast.Out(1)))    
+    graph
+
 let printer (inbox : Actor<_>) =
     let rec loop () = actor {
-        let! msg = inbox.Receive()
+        let! msg = inbox.Receive()     
         printfn "%s" msg
         return! loop ()
     }
@@ -115,15 +98,15 @@ let run urls =
         printfn "Starting graph..."
         Graph.create (fun b ->
             let source = b.Add(Source.From( urls |> Seq.map Uri).Async())
-            let sink = b.Add(Sink.forEach (fun s -> actorRef.Tell (sprintf "Uri : %O" s)))
-            let crawlerFlow = b.Add(webCrawler().Async())
+            let sink = b.Add(Sink.forEach (fun s -> actorRef.Tell (sprintf "Uri processed : %O" s)))
+            let crawlerFlow = b.Add(webCrawler())
             
             b.From(source).Via(crawlerFlow).To(sink) |> ignore
             
             ClosedShape.Instance)
         |> RunnableGraph.FromGraph
         
-    graph |> Graph.run mat
+    graph |> Graph.run mat |> ignore
     Console.ReadLine() |> ignore
     
                     

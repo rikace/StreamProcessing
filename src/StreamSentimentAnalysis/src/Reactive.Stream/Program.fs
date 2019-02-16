@@ -11,9 +11,8 @@ open Tweetinvi.Models
 open Akka.Streams.Dsl
 open Shared.Reactive
 open Shared.Reactive.Tweets
-open Reactive.StreamTwo
 open System.Threading.Tasks
-open Reactive.StreamOne
+open TweeterStreaming
 open Akka.FSharp.Actors
 open Akka.FSharp
 
@@ -35,7 +34,7 @@ module Graph =
         // 1 channel formats the output to render only the User of the tweet
         // 2 channel formats the output to render only the coordinates
         // Ultimately the channels are merged together and rendered at the same rate
-        | RunnableGraphType.TweetsWithBroadcast -> Reactive.StreamOne.TweetsWithBroadcast.create(tweetSource)
+        | RunnableGraphType.TweetsWithBroadcast -> TweetsWithBroadcast.create(tweetSource)
         // Similar to TweetsWithBroadcast but with Throttling
         | RunnableGraphType.TweetsWithThrottle -> TweetsWithThrottle.create(tweetSource)
         | RunnableGraphType.TweetsWithWeather -> TweetsWithWeather.create(tweetSource)
@@ -52,10 +51,7 @@ let printer (inbox : Actor<_>) =
 
 let runTweetStreaming useCachedTweets (graphType : RunnableGraphType) =
     use system = ActorSystem.Create("Reactive-System")
-    let consumerKey = ConfigurationManager.AppSettings.["ConsumerKey"]
-    let consumerSecret = ConfigurationManager.AppSettings.["ConsumerSecret"]
-    let accessToken = ConfigurationManager.AppSettings.["AccessToken"]
-    let accessTokenSecret = ConfigurationManager.AppSettings.["AccessTokenSecret"]
+
 
     Console.OutputEncoding <- System.Text.Encoding.UTF8
     Console.ForegroundColor <- ConsoleColor.Cyan
@@ -74,7 +70,7 @@ let runTweetStreaming useCachedTweets (graphType : RunnableGraphType) =
         graph.Run(materialize) |> ignore
 
     else
-        Auth.SetCredentials(new TwitterCredentials(consumerKey, consumerSecret, accessToken, accessTokenSecret))
+        Auth.SetCredentials(Credentials.twitterCredentials)
 
             // TODO OverflowStrategy.DropHead 
         let tweetSource = Source.ActorRef<ITweet>(100, OverflowStrategy.DropBuffer)
@@ -87,39 +83,29 @@ let runTweetStreaming useCachedTweets (graphType : RunnableGraphType) =
 
 [<EntryPoint>]
 let main argv =
-    
+    let sites = [
+       "http://cnn.com/";          "http://bbc.com/"; 
+       "http://www.live.com";      "http://www.fsharp.org";
+       "http://news.live.com";     "http://www.digg.com";
+       "http://www.yahoo.com";     "http://www.amazon.com"
+       "http://news.yahoo.com";    "http://www.microsoft.com";
+       "http://www.google.com";    "http://www.netflix.com";
+       "http://news.google.com";   "http://www.maps.google.com";
+       "http://www.bing.com";      "http://www.microsoft.com";
+       "http://www.facebook.com";  "http://www.docs.google.com";
+       "http://www.youtube.com";   "http://www.gmail.com";
+       "http://www.reddit.com";    "http://www.twitter.com";   ]
 
-        
-//    
-//    namespace Demo.HelloWorld
-//{
-//    public class Printer : ReceiveActor
-//    {
-//        public Printer()
-//        {
-//            Receive<string>(whom => Console.WriteLine($"Hello from {whom}!"));
-//        }
-//    }
-//}
-//
-//    Source(1 to 1000000)
-//  .grouped(10)
-//  .throttle(elements = 10, per = 1.second, maximumBurst = 10, ThrottleMode.shaping)
-//  .mapAsync(10)(writeBatchToDatabase)
-//  .runWith(Sink.ignore)
-
-    
-    
     let runWebCrawler () =
         Task.Run(fun () ->
-            WebCrawler.run [ "http://cnn.com/"; "http://bbc.com/"; "http://google.com/" ])
+            WebCrawler.run sites)
         |> ignore
         
     let runTweetStreamimg () =
         runTweetStreaming true RunnableGraphType.TweetsToConsole 
         
 
-    runWebCrawler()
+    //runWebCrawler()
     runTweetStreamimg()
     
     Console.WriteLine("<< Press Enter to Exit >>")

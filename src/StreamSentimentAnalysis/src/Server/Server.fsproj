@@ -12,8 +12,8 @@
     <Compile Include="../Shared/StreamCombinators.fs">
       <Link>StreamCombinators.fs</Link>
     </Compile>
-    <Compile Include="Streaming.fs" />    
     <Compile Include="WebSockets.fs" />
+    <Compile Include="Streaming.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />

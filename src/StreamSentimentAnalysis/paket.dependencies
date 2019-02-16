@@ -89,3 +89,14 @@ group WebCrawler
     nuget HtmlAgilityPack
     nuget System.Reactive
     nuget System.Threading.Tasks.Dataflow
+
+group ReactiveTweets
+    source https://api.nuget.org/v3/index.json
+    framework: netcoreapp2.1
+    #storage: none
+
+    nuget Akka
+    nuget Akka.Streams
+    nuget Newtonsoft.Json
+    nuget TweetinviAPI
+    nuget System.Configuration.ConfigurationManager
