@@ -26,7 +26,7 @@ let updateMap next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
         return! json "Created!" next ctx
     }
     
-let start next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
+let start (graphType: GraphType) next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
     task {
         let update =
             (fun (emotion : MarkerLocation) -> async {
@@ -36,35 +36,7 @@ let start next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
                 })
         tks <- Some(new CancellationTokenSource())             
         Task.Factory.StartNew((fun () ->
-            disposable <- Some (ServerStreams.startStreamingCache GraphType.Sync)),tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
-        return! json "Started!" next ctx
-    }
-
-let startAsync next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
-    task {
-        let update =
-            (fun (emotion : MarkerLocation) -> async {
-                let model = {Type = "pinsentiment"; Data = emotion}
-                let jsonData = Thoth.Json.Net.Encode.Auto.toString (2, model)
-                do! WebSockets.sendMessageToSockets jsonData |> Async.AwaitTask
-                })
-        tks <- Some(new CancellationTokenSource())            
-        Task.Factory.StartNew((fun () ->
-            disposable <- Some (ServerStreams.startStreamingCache GraphType.Async)), tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
-        return! json "Started!" next ctx
-    }
-
-let startParallel next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
-    task {
-        let update =
-            (fun (emotion : MarkerLocation) -> async {
-                let model = {Type = "pinsentiment"; Data = emotion}
-                let jsonData = Thoth.Json.Net.Encode.Auto.toString (2, model)
-                do! WebSockets.sendMessageToSockets jsonData |> Async.AwaitTask
-                })   
-        tks <- Some(new CancellationTokenSource())
-        Task.Factory.StartNew((fun () ->
-            disposable <- Some (ServerStreams.startStreamingCache GraphType.Parallel)), tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
+            disposable <- Some (ServerStreams.startStreamingCache graphType)),tks.Value.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default) |> ignore
         return! json "Started!" next ctx
     }
     
@@ -78,9 +50,9 @@ let stop next (ctx :  Microsoft.AspNetCore.Http.HttpContext) =
 let webApp =
     router {
         post "/api/update" updateMap
-        post "/api/start" start
-        post "/api/startasync" startAsync
-        post "/api/startparallel" startParallel
+        post "/api/start" (start GraphType.Sync)
+        post "/api/startasync" (start GraphType.Async)
+        post "/api/startparallel" (start GraphType.Parallel)
         post "/api/stop" stop
     }
 

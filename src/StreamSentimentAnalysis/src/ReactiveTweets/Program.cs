@@ -58,10 +58,10 @@ namespace Reactive.Tweets
             IRunnableGraph<TMat> CreateRunnableGraph<TMat>(Source<ITweet, TMat> tweetSource)
 
                 =>  //TweetsToConsole.CreateRunnableGraph(tweetSource);
-                    //TweetsWithBroadcast.CreateRunnableGraph(tweetSource);
-                    //TweetsWithThrottle.CreateRunnableWethaerGraph(tweetSource);
-                    //TweetsWithThrottle.CreateRunnableGraph(tweetSource);
-                    TweetsWithWeather.CreateRunnableGraph(tweetSource);
+                    TweetsWithThrottle.CreateRunnableGraph(tweetSource);
+                    //TweetsWithBroadcast.CreateRunnableGraph(tweetSource);   // broadcasting
+                    //TweetsWithThrottle.CreateRunnableWeatherWithThrottleGraph(tweetSource);   // change Throttling value to one of the Flow                    
+                    //TweetsWithWeather.CreateRunnableGraph(tweetSource);  // change level of parallelism
                     
 
         }

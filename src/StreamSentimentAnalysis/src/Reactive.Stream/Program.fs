@@ -100,13 +100,13 @@ let main argv =
         Task.Run(fun () ->
             WebCrawler.run sites)
         |> ignore
+    runWebCrawler()
+
         
     let runTweetStreamimg () =
-        runTweetStreaming true RunnableGraphType.TweetsToConsole 
-        
+        runTweetStreaming true RunnableGraphType.TweetsToConsole         
 
-    //runWebCrawler()
-    runTweetStreamimg()
+    // runTweetStreamimg()
     
     Console.WriteLine("<< Press Enter to Exit >>")
     Console.ReadLine() |> ignore

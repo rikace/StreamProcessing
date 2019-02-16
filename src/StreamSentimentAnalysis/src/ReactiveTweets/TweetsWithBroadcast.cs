@@ -23,6 +23,7 @@ namespace Reactive.Tweets
             {
                 var broadcast = b.Add(new Broadcast<ITweet>(2));
                 var merge = b.Add(new Merge<string>(2));
+                
                 b.From(broadcast.Out(0))
                     .Via(Flow.Create<ITweet>().Select(tweet => tweet.CreatedBy))
                     .Via(formatUser)
